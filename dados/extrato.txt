@@ -1,0 +1,5 @@
+1;Interestelar;Filme;Ficcao cientifica;2014;Exploradores viajam pelo universo em busca de um novo lar.
+2;Cidade de Deus;Filme;Drama;2002;Trajetoria de jovens em uma comunidade carioca dominada pelo crime.
+3;Stranger Things;Serie;Suspense;2016;Amigos investigam eventos sobrenaturais em uma cidade americana.
+4;O Poderoso Chefao;Filme;Drama;1972;A historia de uma familia mafiosa italiana nos Estados Unidos.
+5;La Casa de Papel;Serie;Acao;2017;Um grupo de criminosos planeja o maior roubo da historia da Espanha.
