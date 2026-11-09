@@ -22,7 +22,6 @@ def gravar_arquivo(arquivos, registrar):
     for r in registrar:
         linha = ";".join(r)
         arq.write(linha + "\n")
-    arq.close()
 
 
 def preparar_dados():
