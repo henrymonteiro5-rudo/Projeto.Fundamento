@@ -1,532 +1,429 @@
-import os
-import math
-import random
-from datetime import datetime
+from random import random
 
-ARQ_USUARIOS = "dados/usuarios.txt"
-ARQ_CRIPTOS = "dados/criptos.txt"
-ARQ_EXTRATOS = "dados/extratos.txt"
+ARQ_USUARIOS = "usuarios.txt"
+ARQ_CRIPTOS = "cripto.txt"
+ARQ_EXTRATOS = "arquivos.txt"
 
-# Formato das linhas de cada arquivo (campos separados por ";"):
-#   usuarios.txt -> cpf;nome;senha;tipo;reais;carteira
-#                   tipo = "admin" ou "investidor"
-#                   carteira = "Bitcoin:0.0025,Ethereum:0.5" (vazia se não tem cripto)
-#   criptos.txt  -> nome;cotacao;taxa_compra(%);taxa_venda(%)
-#   extratos.txt -> cpf;data;sinal;valor;moeda;cotacao;taxa;saldos
+ADMIN_CPF = "11111111111"
+ADMIN_SENHA = "123456"
 
 
-# Leitura e gravação de arquivos
-def ler_arquivo(arquivos):
-    arq = open(arquivos, "r", encoding="utf-8")
-    linhas = arq.readlines()
+def ler_linhas(caminho):
+    arq = open(caminho, "r", encoding="utf-8")
+    todas = arq.readlines()
     arq.close()
 
-    registrar = []
-    for linha in linhas:
+    linhas = []
+    for linha in todas:
         if linha.strip() != "":
-            registrar.append(linha.strip().split(";"))
+            linhas.append(linha.strip())
+    return linhas
 
-    return registrar
 
-
-def gravar_arquivo(arquivos, registrar):
-    arq = open(arquivos, "w", encoding="utf-8")
-    for r in registrar:
-        linha = ";".join(r)
+def gravar_linhas(caminho, linhas):
+    arq = open(caminho, "w", encoding="utf-8")
+    for linha in linhas:
         arq.write(linha + "\n")
     arq.close()
 
 
-def adicionar_arquivo(arquivos, registro):
-    arq = open(arquivos, "a", encoding="utf-8")
-    arq.write(";".join(registro) + "\n")
-    arq.close()
+def juntar(partes):
 
-
-def preparar_dados():
-    os.makedirs("dados", exist_ok=True)
-
-    if not os.path.exists(ARQ_USUARIOS):
-        gravar_arquivo(ARQ_USUARIOS, [
-            ["12345678900", "Administrador", "123456", "admin", "0.00", ""]
-        ])
-    if not os.path.exists(ARQ_CRIPTOS):
-        gravar_arquivo(ARQ_CRIPTOS, [
-            ["Bitcoin", "400000.00", "2", "3"],
-            ["Ethereum", "16108.00", "1", "2"],
-            ["Ripple", "2.57", "1", "1"],
-        ])
-    if not os.path.exists(ARQ_EXTRATOS):
-        gravar_arquivo(ARQ_EXTRATOS, [])
-
-
-# Funções
-def formatar_reais(valor):
-    return f"{valor:.2f}".replace(".", ",")
-
-
-def texto_qtd(valor):
-    texto = f"{valor:.8f}".rstrip("0")
-    if texto.endswith("."):
-        texto = texto + "0"
+    texto = partes[0]
+    for i in range(1, len(partes)):
+        texto = texto + ";" + partes[i]
     return texto
 
 
-def formatar_qtd(valor):
-    return texto_qtd(valor).replace(".", ",")
+def preparar():
+
+    for nome in [ARQ_USUARIOS, ARQ_CRIPTOS, ARQ_EXTRATOS]:
+        arq = open(nome, "a", encoding="utf-8")
+        arq.close()
+
+    if len(ler_linhas(ARQ_CRIPTOS)) == 0:
+        gravar_linhas(ARQ_CRIPTOS, ["Bitcoin;350000.00;2;3", "Ethereum;15000.00;1;2", "Ripple;2.50;1;1"])
 
 
-def ler_cpf(mensagem="CPF (somente números, sem pontos e sem traços): "):
-    while True:
-        cpf = input(mensagem).strip()
-        if len(cpf) == 11 and cpf.isdigit():
-            return cpf
-        print("CPF inválido: informe 11 dígitos, sem pontos e sem traços.")
+def buscar_usuario(cpf):
+
+    for linha in ler_linhas(ARQ_USUARIOS):
+        u = linha.split(";")
+        if u[1] == cpf:
+            return u
+    return []
 
 
-def ler_senha():
-    while True:
-        senha = input("Senha (6 dígitos numéricos): ").strip()
-        if len(senha) == 6 and senha.isdigit():
-            return senha
-        print("Senha inválida: use exatamente 6 dígitos numéricos.")
+def salvar_usuario(u):
+
+    linhas = ler_linhas(ARQ_USUARIOS)
+    for i in range(len(linhas)):
+        if linhas[i].split(";")[1] == u[1]:
+            linhas[i] = juntar(u)
+    gravar_linhas(ARQ_USUARIOS, linhas)
 
 
-def ler_nome(mensagem):
-    while True:
-        nome = input(mensagem).strip()
-        if nome != "" and nome.replace(" ", "").isalnum():
-            return nome
-        print("Nome inválido: use apenas letras, números e espaços.")
+def registrar(u, texto):
+    criptos = ler_linhas(ARQ_CRIPTOS)
 
+    saldos = "REAL: " + u[3]
+    for i in range(len(criptos)):
+        saldos = saldos + " " + criptos[i].split(";")[0] + ": " + u[4 + i]
 
-def ler_valor(mensagem, permitir_zero=False):
-    while True:
-        texto = input(mensagem).strip().replace(",", ".")
-        try:
-            valor = float(texto)
-        except ValueError:
-            print("Valor inválido. Digite um número.")
-            continue
-        if not math.isfinite(valor) or valor < 0 or (valor == 0 and not permitir_zero):
-            print("Valor inválido. Digite um número positivo.")
-            continue
-        return valor
+    arq = open(ARQ_EXTRATOS, "a", encoding="utf-8")
+    arq.write(u[1] + ";" + texto + " " + saldos + "\n")
+    arq.close()
 
-
-def confirmar(mensagem):
-    while True:
-        resposta = input(mensagem + " (S/N): ").strip().upper()
-        if resposta == "S":
-            return True
-        if resposta == "N":
-            return False
-        print("Responda S ou N.")
-
-
-def confirmar_senha(registro):
-    if ler_senha() == registro[2]:
+def senha(u):
+    if input("Senha (6 digitos): ") == u[2]:
         return True
     print("Senha incorreta.")
     return False
 
 
-def buscar_usuario(cpf):
-    for registro in ler_arquivo(ARQ_USUARIOS):
-        if registro[0] == cpf:
-            return registro
-    return None
+def mostrar_saldo(u):
+    criptos = ler_linhas(ARQ_CRIPTOS)
+    print("Nome:", u[0])
+    print("CPF:", u[1])
+    print("Reais: %.2f" % float(u[3]))
+    for i in range(len(criptos)):
+        print(criptos[i].split(";")[0] + ":", u[4 + i])
 
 
-def salvar_usuario(usuario_novo):
-    registros = ler_arquivo(ARQ_USUARIOS)
-    for i in range(len(registros)):
-        if registros[i][0] == usuario_novo[0]:
-            registros[i] = usuario_novo
-    gravar_arquivo(ARQ_USUARIOS, registros)
+def mostrar_extrato(u):
+    print("Nome:", u[0])
+    print("CPF:", u[1])
+    for linha in ler_linhas(ARQ_EXTRATOS):
+        partes = linha.split(";")
+        if partes[0] == u[1]:
+            print(partes[1])
 
 
-def buscar_cripto(nome):
-    for cripto in ler_arquivo(ARQ_CRIPTOS):
-        if cripto[0].lower() == nome.lower():
-            return cripto
-    return None
+def escolher_cripto():
+   
+    criptos = ler_linhas(ARQ_CRIPTOS)
+    for i in range(len(criptos)):
+        c = criptos[i].split(";")
+        print(i + 1, "-", c[0], "- R$", c[1])
+
+    escolha = input("Escolha o numero da criptomoeda: ")
+    if escolha.isdigit() and int(escolha) >= 1 and int(escolha) <= len(criptos):
+        return int(escolha) - 1
+
+    print("Opcao invalida.")
+    return -1
 
 
-def carteira_para_dict(texto):
-    carteira = {}
-    if texto != "":
-        for item in texto.split(","):
-            nome, quantidade = item.split(":")
-            carteira[nome] = float(quantidade)
-    return carteira
+def atualizar_cotacao():
+    criptos = ler_linhas(ARQ_CRIPTOS)
+
+    for i in range(len(criptos)):
+        c = criptos[i].split(";")
+        cotacao = float(c[1])
+        variacao = random() * 10 - 5            # entre -5 e +5 (%)
+        nova_cotacao = cotacao + cotacao * variacao / 100
+        c[1] = "%.2f" % nova_cotacao
+        criptos[i] = juntar(c)
+        print(c[0], "- R$", c[1])
+
+    gravar_linhas(ARQ_CRIPTOS, criptos)
+    print("Cotacoes atualizadas!")
+
+def consultar_saldo(cpf):
+    u = buscar_usuario(cpf)
+    if senha(u):
+        mostrar_saldo(u)
 
 
-def dict_para_carteira(carteira):
-    itens = []
-    for nome in carteira:
-        if carteira[nome] > 0:
-            itens.append(nome + ":" + texto_qtd(carteira[nome]))
-    return ",".join(itens)
+def consultar_extrato(cpf):
+    u = buscar_usuario(cpf)
+    if senha(u):
+        mostrar_extrato(u)
 
 
-def mostrar_cotacoes():
-    print("\n--- Cotações atuais ---")
-    for cripto in ler_arquivo(ARQ_CRIPTOS):
-        print(f"{cripto[0]}: R$ {formatar_reais(float(cripto[1]))} "
-              f"(taxa compra {cripto[2]}% | taxa venda {cripto[3]}%)")
+def depositar(cpf):
+    valor = float(input("Valor do deposito: R$ "))
+    if valor <= 0:
+        print("Valor invalido.")
+        return
+
+    u = buscar_usuario(cpf)
+    reais = float(u[3])
+
+    u[3] = "%.2f" % (reais + valor)
+    salvar_usuario(u)
+    registrar(u, "+ %.2f REAL CT: 0.0 TX: 0.00" % valor)
+    mostrar_saldo(u)
 
 
-def mostrar_saldo(registro):
-    carteira = carteira_para_dict(registro[5])
-    print("\nNome:", registro[1])
-    print("CPF:", registro[0])
-    print("Reais:", formatar_reais(float(registro[4])))
-    for cripto in ler_arquivo(ARQ_CRIPTOS):
-        print(f"{cripto[0]}: {formatar_qtd(carteira.get(cripto[0], 0.0))}")
+def sacar(cpf):
+    valor = float(input("Valor do saque: R$ "))
+    u = buscar_usuario(cpf)
+    reais = float(u[3])
 
-
-def registrar_extrato(registro, sinal, valor, moeda, cotacao, taxa):
-    carteira = carteira_para_dict(registro[5])
-    saldos = ["REAL:" + f"{float(registro[4]):.2f}"]
-    for cripto in ler_arquivo(ARQ_CRIPTOS):
-        saldos.append(cripto[0] + ":" + texto_qtd(carteira.get(cripto[0], 0.0)))
-
-# compras e movimentos (R$)
-    if moeda == "REAL" or sinal == "+":
-        texto_valor = f"{valor:.2f}"
-    else:
-        texto_valor = texto_qtd(valor)
-
-    data = datetime.now().strftime("%d-%m-%Y %H:%M")
-    adicionar_arquivo(ARQ_EXTRATOS, [
-        registro[0], data, sinal, texto_valor, moeda,
-        f"{cotacao:.2f}", f"{taxa:g}", "|".join(saldos),
-    ])
-
-
-def mostrar_extrato(registro):
-    print("\nNome:", registro[1])
-    print("CPF:", registro[0])
-    achou = False
-    for linha in ler_arquivo(ARQ_EXTRATOS):
-        if linha[0] == registro[0]:
-            achou = True
-            saldos = linha[7].replace("|", " ").replace(":", ": ")
-            print(f"{linha[1]} {linha[2]} {linha[3]} {linha[4]} "
-                  f"CT: {linha[5]} TX: {linha[6]} {saldos}")
-    if not achou:
-        print("Nenhuma operação registrada.")
-
-# Login
-def login():
-    print("\n--- Login ---")
-    cpf = ler_cpf()
-    senha = ler_senha()
-    usuario = buscar_usuario(cpf)
-    if usuario is not None and usuario[2] == senha:
-        print("Bem-vindo(a),", usuario[1] + "!")
-        return cpf
-    print("CPF ou senha incorretos.")
-    return None
-
-# Funções do investidor
-def consultar_saldo(usuario):
-    registro = buscar_usuario(usuario)
-    if confirmar_senha(registro):
-        mostrar_saldo(registro)
-
-
-def consultar_extrato(usuario):
-    registro = buscar_usuario(usuario)
-    if confirmar_senha(registro):
-        mostrar_extrato(registro)
-
-
-def depositar(usuario):
-    registro = buscar_usuario(usuario)
-    valor = ler_valor("Valor do depósito (R$): ")
-    reais = round(float(registro[4]) + valor, 2)
-    registro[4] = f"{reais:.2f}"
-    salvar_usuario(registro)
-    registrar_extrato(registro, "+", valor, "REAL", 0.0, 0.0)
-    print("Depósito realizado!")
-    mostrar_saldo(registro)
-
-
-def sacar(usuario):
-    registro = buscar_usuario(usuario)
-    valor = ler_valor("Valor do saque (R$): ")
-    reais = float(registro[4])
+    if valor <= 0:
+        print("Valor invalido.")
+        return
     if valor > reais:
-        print("Saldo insuficiente. O saldo não pode ficar negativo.")
-        return
-    reais = round(reais - valor, 2)
-    registro[4] = f"{reais:.2f}"
-    salvar_usuario(registro)
-    registrar_extrato(registro, "-", valor, "REAL", 0.0, 0.0)
-    print("Saque realizado!")
-    mostrar_saldo(registro)
-
-
-def comprar_cripto(usuario):
-    registro = buscar_usuario(usuario)
-    if not confirmar_senha(registro):
+        print("Saldo insuficiente.")
         return
 
-    mostrar_cotacoes()
-    cripto = buscar_cripto(input("\nQual criptomoeda deseja comprar? "))
-    if cripto is None:
-        print("Criptomoeda não encontrada.")
+    u[3] = "%.2f" % (reais - valor)
+    salvar_usuario(u)
+    registrar(u, "- %.2f REAL CT: 0.0 TX: 0.00" % valor)
+    mostrar_saldo(u)
+
+
+def comprar(cpf):
+    u = buscar_usuario(cpf)
+    if not senha(u):
+        return
+    i = escolher_cripto()
+    if i == -1:
         return
 
-    reais = float(registro[4])
-    print("Saldo em reais: R$", formatar_reais(reais))
-    valor = ler_valor("Quanto deseja comprar (em R$, sem contar a taxa)? ")
+    c = ler_linhas(ARQ_CRIPTOS)[i].split(";")
+    cotacao = float(c[1])
+    taxa = float(c[2]) / 100
 
-    cotacao = float(cripto[1])
-    taxa_percentual = float(cripto[2])
-    taxa = round(valor * taxa_percentual / 100, 2)
-    total = round(valor + taxa, 2)
-    quantidade = round(valor / cotacao, 8)
+    valor = float(input("Quanto deseja comprar (em reais): R$ "))
+    total = valor + valor * taxa         
+    quantidade = valor / cotacao         
 
+    reais = float(u[3])
+    saldo_cripto = float(u[4 + i])
+
+    if valor <= 0:
+        print("Valor invalido.")
+        return
     if total > reais:
-        print("Saldo insuficiente. Custo total: R$", formatar_reais(total))
+        print("Saldo insuficiente.")
         return
 
-    print(f"\nResumo: {formatar_qtd(quantidade)} {cripto[0]} por R$ {formatar_reais(valor)} "
-          f"+ taxa R$ {formatar_reais(taxa)} = R$ {formatar_reais(total)}")
-    if not confirmar("Confirmar compra?"):
-        print("Compra cancelada.")
+    u[3] = "%.2f" % (reais - total)
+    u[4 + i] = "%.8f" % (saldo_cripto + quantidade)
+    salvar_usuario(u)
+    registrar(u, "+ %.2f %s CT: %s TX: %.2f" % (valor, c[0], c[1], taxa))
+    mostrar_saldo(u)
+
+
+def vender(cpf):
+    u = buscar_usuario(cpf)
+    if not senha(u):
+        return
+    i = escolher_cripto()
+    if i == -1:
         return
 
-    carteira = carteira_para_dict(registro[5])
-    carteira[cripto[0]] = carteira.get(cripto[0], 0.0) + quantidade
-    registro[4] = f"{round(reais - total, 2):.2f}"
-    registro[5] = dict_para_carteira(carteira)
-    salvar_usuario(registro)
-    registrar_extrato(registro, "+", valor, cripto[0], cotacao, taxa_percentual / 100)
-    print("Compra realizada!")
-    mostrar_saldo(registro)
+    c = ler_linhas(ARQ_CRIPTOS)[i].split(";")
+    cotacao = float(c[1])
+    taxa = float(c[3]) / 100
 
+    quantidade = float(input("Quanto deseja vender (quantidade de criptomoeda): "))
+    bruto = quantidade * cotacao
+    recebido = bruto - bruto * taxa      
 
-def vender_cripto(usuario):
-    registro = buscar_usuario(usuario)
-    if not confirmar_senha(registro):
+    reais = float(u[3])
+    saldo_cripto = float(u[4 + i])
+
+    if quantidade <= 0:
+        print("Quantidade invalida.")
+        return
+    if quantidade > saldo_cripto:
+        print("Saldo de criptomoeda insuficiente.")
         return
 
-    mostrar_cotacoes()
-    cripto = buscar_cripto(input("\nQual criptomoeda deseja vender? "))
-    if cripto is None:
-        print("Criptomoeda não encontrada.")
-        return
+    u[4 + i] = "%.8f" % (saldo_cripto - quantidade)
+    u[3] = "%.2f" % (reais + recebido)
+    salvar_usuario(u)
+    registrar(u, "- %.2f %s CT: %s TX: %.2f" % (bruto, c[0], c[1], taxa))
+    mostrar_saldo(u)
 
-    carteira = carteira_para_dict(registro[5])
-    disponivel = carteira.get(cripto[0], 0.0)
-    print(f"Você possui {formatar_qtd(disponivel)} {cripto[0]}.")
-    quantidade = ler_valor(f"Quantidade de {cripto[0]} a vender: ")
-    if quantidade > disponivel + 0.000000001:
-        print("Quantidade insuficiente. O saldo não pode ficar negativo.")
-        return
-    quantidade = min(quantidade, disponivel)
-
-    cotacao = float(cripto[1])
-    taxa_percentual = float(cripto[3])
-    bruto = round(quantidade * cotacao, 2)
-    taxa = round(bruto * taxa_percentual / 100, 2)
-    liquido = round(bruto - taxa, 2)
-
-    print(f"\nResumo: {formatar_qtd(quantidade)} {cripto[0]} = R$ {formatar_reais(bruto)} "
-          f"- taxa R$ {formatar_reais(taxa)} = R$ {formatar_reais(liquido)}")
-    if not confirmar("Confirmar venda?"):
-        print("Venda cancelada.")
-        return
-
-    carteira[cripto[0]] = disponivel - quantidade
-    registro[4] = f"{round(float(registro[4]) + liquido, 2):.2f}"
-    registro[5] = dict_para_carteira(carteira)
-    salvar_usuario(registro)
-    registrar_extrato(registro, "-", quantidade, cripto[0], cotacao, taxa_percentual / 100)
-    print("Venda realizada!")
-    mostrar_saldo(registro)
-
-
-def atualizar_cotacao(nome=None):
-    criptos = ler_arquivo(ARQ_CRIPTOS)
-    for cripto in criptos:
-        if nome is None or cripto[0].lower() == nome.lower():
-            antiga = float(cripto[1])
-            nova = round(antiga * random.uniform(0.95, 1.05), 2)
-            minimo = math.ceil(antiga * 0.95 * 100) / 100
-            maximo = math.floor(antiga * 1.05 * 100) / 100
-            nova = max(min(nova, maximo), minimo, 0.01)
-            cripto[1] = f"{nova:.2f}"
-    gravar_arquivo(ARQ_CRIPTOS, criptos)
-    print("Cotações atualizadas!")
-    mostrar_cotacoes()
-
-
-# Funções do administrador
 def cadastrar_investidor():
-    nome = ler_nome("Nome do investidor: ")
-    cpf = ler_cpf()
-    if buscar_usuario(cpf) is not None:
-        print("Já existe um usuário com esse CPF.")
+    linhas = ler_linhas(ARQ_USUARIOS)
+    criptos = ler_linhas(ARQ_CRIPTOS)
+
+    nome = input("Nome: ")
+    cpf = input("CPF (sem pontos e sem tracos): ")
+    senha = input("Senha (6 digitos): ")
+
+    if not cpf.isdigit() or len(cpf) != 11 or len(senha) != 6 or not senha.isdigit():
+        print("CPF ou senha invalidos.")
         return
-    senha = ler_senha()
-    adicionar_arquivo(ARQ_USUARIOS, [cpf, nome, senha, "investidor", "0.00", ""])
-    print("Investidor cadastrado com sucesso!")
+    if buscar_usuario(cpf) != []:
+        print("CPF ja cadastrado.")
+        return
 
+    novo = nome + ";" + cpf + ";" + senha + ";0.00"
+    for c in criptos:
+        novo = novo + ";0.00000000"
 
-def buscar_investidor_admin():
-    registro = buscar_usuario(ler_cpf("CPF do investidor: "))
-    if registro is None or registro[3] != "investidor":
-        print("CPF não encontrado.")
-        return None
-    return registro
+    linhas.append(novo)
+    gravar_linhas(ARQ_USUARIOS, linhas)
+    print("Investidor cadastrado!")
 
 
 def excluir_investidor():
-    registro = buscar_investidor_admin()
-    if registro is None:
-        return
-    mostrar_saldo(registro)
-    if not confirmar("\nTem certeza que deseja excluir este investidor (extrato também)?"):
-        print("Exclusão cancelada.")
+    cpf = input("CPF do investidor que deseja excluir: ")
+    u = buscar_usuario(cpf)
+    if u == []:
+        print("CPF nao encontrado.")
         return
 
-    usuarios = []
-    for r in ler_arquivo(ARQ_USUARIOS):
-        if r[0] != registro[0]:
-            usuarios.append(r)
-    gravar_arquivo(ARQ_USUARIOS, usuarios)
+    mostrar_saldo(u)
+    resposta = input("Deseja realmente excluir? (s/n): ")
 
-    extratos = []
-    for linha in ler_arquivo(ARQ_EXTRATOS):
-        if linha[0] != registro[0]:
-            extratos.append(linha)
-    gravar_arquivo(ARQ_EXTRATOS, extratos)
-    print("Investidor excluído.")
+    if resposta == "s":
+        restantes = []
+        for linha in ler_linhas(ARQ_USUARIOS):
+            if linha.split(";")[1] != cpf:
+                restantes.append(linha)
+        gravar_linhas(ARQ_USUARIOS, restantes)
 
+    extratos_novos = []
+    for linha in ler_linhas(ARQ_EXTRATOS):
+        partes = linha.split(";")
+        if partes[0] != cpf:
+                extratos_novos.append(linha)
+        gravar_linhas(ARQ_EXTRATOS, extratos_novos)
+
+        print("Investidor excluido!")
+    else:
+        print("Exclusao cancelada.")
 
 def cadastrar_cripto():
-    nome = ler_nome("Nome da criptomoeda: ")
-    if buscar_cripto(nome) is not None:
-        print("Essa criptomoeda já existe.")
+    usuarios = ler_linhas(ARQ_USUARIOS)
+    criptos = ler_linhas(ARQ_CRIPTOS)
+
+    nome = input("Nome da criptomoeda: ")
+    cotacao = float(input("Cotacao: R$ "))
+    taxa_compra = float(input("Taxa de compra (%): "))
+    taxa_venda = float(input("Taxa de venda (%): "))
+
+    if cotacao <= 0:
+        print("A cotacao precisa ser maior que zero.")
         return
-    cotacao = ler_valor("Cotação inicial (R$): ")
-    taxa_compra = ler_valor("Taxa de compra (%): ", True)
-    taxa_venda = ler_valor("Taxa de venda (%): ", True)
-    adicionar_arquivo(ARQ_CRIPTOS, [nome, f"{cotacao:.2f}", f"{taxa_compra:g}", f"{taxa_venda:g}"])
-    print("Criptomoeda cadastrada com sucesso!")
+
+    if taxa_compra < 0 or taxa_venda < 0:
+        print("As taxas nao podem ser negativas.")
+        return
+
+    for linha in criptos:
+        dados = linha.split(";")
+        if dados[0].lower() == nome.lower():
+            print("Essa criptomoeda ja esta cadastrada.")
+            return
+
+    criptos.append("%s;%.2f;%.2f;%.2f" %
+                   (nome, cotacao, taxa_compra, taxa_venda))
+
+    for i in range(len(usuarios)):
+        usuarios[i] = usuarios[i] + ";0.00000000"
+
+    gravar_linhas(ARQ_CRIPTOS, criptos)
+    gravar_linhas(ARQ_USUARIOS, usuarios)
+    print("Criptomoeda cadastrada!")
 
 
 def excluir_cripto():
-    cripto = buscar_cripto(input("Nome da criptomoeda a ser excluída: "))
-    if cripto is None:
-        print("Criptomoeda não encontrada.")
+    usuarios = ler_linhas(ARQ_USUARIOS)
+    criptos = ler_linhas(ARQ_CRIPTOS)
+
+    nome = input("Nome da criptomoeda que deseja excluir: ")
+
+    pos = -1
+    for i in range(len(criptos)):
+        if criptos[i].split(";")[0] == nome:
+            pos = i
+
+    if pos == -1:
+        print("Criptomoeda nao encontrada.")
         return
 
+    c = criptos[pos].split(";")
+    print("Nome:", c[0])
+    print("Cotacao: R$", c[1])
+    print("Taxa de compra:", c[2], "%")
+    print("Taxa de venda:", c[3], "%")
+    resposta = input("Deseja realmente excluir? (s/n): ")
 
-    for usuario in ler_arquivo(ARQ_USUARIOS):
-        if carteira_para_dict(usuario[5]).get(cripto[0], 0.0) > 0:
-            print("Não é possível excluir: há investidores com saldo dessa criptomoeda.")
-            return
+    if resposta == "s":
+        criptos.pop(pos)
 
-    print("\nNome:", cripto[0])
-    print("Cotação: R$", formatar_reais(float(cripto[1])))
-    print("Taxa de compra:", cripto[2] + "%")
-    print("Taxa de venda:", cripto[3] + "%")
-    if not confirmar("\nTem certeza que deseja excluir esta criptomoeda?"):
-        print("Exclusão cancelada.")
-        return
+        for i in range(len(usuarios)):
+            u = usuarios[i].split(";")
+            u.pop(4 + pos)
+            usuarios[i] = juntar(u)
 
-    criptos = []
-    for c in ler_arquivo(ARQ_CRIPTOS):
-        if c[0] != cripto[0]:
-            criptos.append(c)
-    gravar_arquivo(ARQ_CRIPTOS, criptos)
-    print("Criptomoeda excluída.")
-
-
-def consultar_saldo_investidor():
-    registro = buscar_investidor_admin()
-    if registro is not None:
-        mostrar_saldo(registro)
-
-
-def consultar_extrato_investidor():
-    registro = buscar_investidor_admin()
-    if registro is not None:
-        mostrar_extrato(registro)
-
-
-def atualizar_cotacao_admin():
-    print("1. Atualizar todas as criptomoedas")
-    print("2. Atualizar uma criptomoeda específica")
-    opcao = input("Escolha: ").strip()
-    if opcao == "1":
-        atualizar_cotacao()
-    elif opcao == "2":
-        mostrar_cotacoes()
-        nome = input("\nQual criptomoeda deseja atualizar? ").strip()
-        if buscar_cripto(nome) is None:
-            print("Criptomoeda não encontrada.")
-        else:
-            atualizar_cotacao(nome)
+        gravar_linhas(ARQ_CRIPTOS, criptos)
+        gravar_linhas(ARQ_USUARIOS, usuarios)
+        print("Criptomoeda excluida!")
     else:
-        print("Opção inválida.")
+        print("Exclusao cancelada.")
 
 
-# Menus
-def menu_investidor(usuario):
-    while True:
-        nome = buscar_usuario(usuario)[1]
-        print(f"\n=== MENU DO INVESTIDOR ({nome}) ===")
-        print("[1.] Consultar saldo.")
-        print("[2.] Consultar extrato.")
-        print("[3.] Depositar.")
-        print("[4.] Sacar.")
-        print("[5.] Comprar criptomoedas.")
-        print("[6.] Vender criptomoedas.")
-        print("[7.] Atualizar cotação.")
-        print("[8.] Sair.")
-        opcao = input("Escolha: ").strip()
+def saldo_de_investidor():
+    u = buscar_usuario(input("CPF do investidor: "))
+    if u == []:
+        print("CPF nao encontrado.")
+    else:
+        mostrar_saldo(u)
+
+
+def extrato_de_investidor():
+    u = buscar_usuario(input("CPF do investidor: "))
+    if u == []:
+        print("CPF nao encontrado.")
+    else:
+        mostrar_extrato(u)
+
+def menu_investidor(cpf):
+    opcao = ""
+
+    while opcao != "8":
+        print("\n===== MENU DO INVESTIDOR =====")
+        print("1 - Consultar saldo")
+        print("2 - Consultar extrato")
+        print("3 - Depositar")
+        print("4 - Sacar")
+        print("5 - Comprar criptomoedas")
+        print("6 - Vender criptomoedas")
+        print("7 - Atualizar cotacao")
+        print("8 - Sair")
+        opcao = input("Escolha: ")
 
         if opcao == "1":
-            consultar_saldo(usuario)
+            consultar_saldo(cpf)
         elif opcao == "2":
-            consultar_extrato(usuario)
+            consultar_extrato(cpf)
         elif opcao == "3":
-            depositar(usuario)
+            depositar(cpf)
         elif opcao == "4":
-            sacar(usuario)
+            sacar(cpf)
         elif opcao == "5":
-            comprar_cripto(usuario)
+            comprar(cpf)
         elif opcao == "6":
-            vender_cripto(usuario)
+            vender(cpf)
         elif opcao == "7":
             atualizar_cotacao()
-        elif opcao == "8":
-            print("Saindo da conta...")
-            break
-        else:
-            print("Opção inválida.")
+        elif opcao != "8":
+            print("Opcao invalida.")
 
 
-def menu_admin(usuario):
-    while True:
-        nome = buscar_usuario(usuario)[1]
-        print(f"\n=== MENU DO ADMINISTRADOR ({nome}) ===")
-        print("[1.] Cadastrar novo investidor.")
-        print("[2.] Excluir investidor.")
-        print("[3.] Cadastrar nova criptomoeda.")
-        print("[4.] Excluir criptomoeda.")
-        print("[5.] Consultar saldo de um investidor.")
-        print("[6.] Consultar extrato de um investidor.")
-        print("[7.] Atualizar cotação das criptomoedas.")
-        print("[8.] Sair.")
-        opcao = input("Escolha: ").strip()
+def menu_admin():
+    opcao = ""
+
+    while opcao != "8":
+        print("\n===== MENU DO ADMINISTRADOR =====")
+        print("1 - Cadastrar novo investidor")
+        print("2 - Excluir investidor")
+        print("3 - Cadastrar nova criptomoeda")
+        print("4 - Excluir criptomoeda")
+        print("5 - Consultar saldo de um investidor")
+        print("6 - Consultar extrato de um investidor")
+        print("7 - Atualizar cotacao das criptomoedas")
+        print("8 - Sair")
+        opcao = input("Escolha: ")
 
         if opcao == "1":
             cadastrar_investidor()
@@ -537,42 +434,44 @@ def menu_admin(usuario):
         elif opcao == "4":
             excluir_cripto()
         elif opcao == "5":
-            consultar_saldo_investidor()
+            saldo_de_investidor()
         elif opcao == "6":
-            consultar_extrato_investidor()
+            extrato_de_investidor()
         elif opcao == "7":
-            atualizar_cotacao_admin()
-        elif opcao == "8":
-            print("Saindo da conta de administrador...")
-            break
-        else:
-            print("Opção inválida.")
+            atualizar_cotacao()
+        elif opcao != "8":
+            print("Opcao invalida.")
 
 
-def menu(usuario):
-    if buscar_usuario(usuario)[3] == "admin":
-        menu_admin(usuario)
+def login():
+    cpf = input("CPF (sem pontos e sem tracos): ")
+
+
+    if not cpf.isdigit() or len(cpf) != 11:
+        print("CPF invalido. Digite 11 numeros.")
+        return
+
+    senha = input("Senha (6 digitos): ")
+
+    if cpf == ADMIN_CPF and senha == ADMIN_SENHA:
+        menu_admin()
     else:
-        menu_investidor(usuario)
-
-
-def inicio():
-    preparar_dados()
-    while True:
-        print("\n=== EXCHANGE DE CRIPTOMOEDAS ===")
-        print("1. Entrar")
-        print("0. Encerrar programa")
-        opcao = input("Escolha: ").strip()
-
-        if opcao == "1":
-            usuario = login()
-            if usuario is not None:
-                menu(usuario)
-        elif opcao == "0":
-            print("Programa encerrado. Seus dados estão salvos nos arquivos .txt.")
-            break
+        u = buscar_usuario(cpf)
+        if u != [] and u[2] == senha:
+            menu_investidor(cpf)
         else:
-            print("Opção inválida.")
+            print("CPF ou senha incorretos.")
 
+preparar()
+opcao = ""
 
-inicio()
+while opcao != "2":
+    print("\n===== EXCHANGE DE CRIPTOMOEDAS =====")
+    print("1 - Login")
+    print("2 - Sair")
+    opcao = input("Escolha: ")
+
+    if opcao == "1":
+        login()
+    elif opcao != "2":
+        print("Opcao invalida.")
