@@ -120,7 +120,7 @@ def atualizar_cotacao():
     for i in range(len(criptos)):
         c = criptos[i].split(";")
         cotacao = float(c[1])
-        variacao = random() * 10 - 5            # entre -5 e +5 (%)
+        variacao = random() * 10 - 5
         nova_cotacao = cotacao + cotacao * variacao / 100
         c[1] = "%.2f" % nova_cotacao
         criptos[i] = juntar(c)
